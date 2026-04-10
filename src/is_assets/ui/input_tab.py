@@ -110,6 +110,10 @@ class InputTab(QWidget):
         actions.addStretch(1)
         actions.addWidget(self.clear_button)
         actions.addWidget(self.save_button)
+        self.skeleton_button = QPushButton("🦴 Загрузить скелет")
+        self.skeleton_button.setToolTip("Загрузить предустановленные параметры")
+        self.skeleton_button.clicked.connect(self.load_skeleton)
+        actions.insertWidget(0, self.skeleton_button)
         root_layout.addLayout(actions)
 
         self.add_parameter_button.clicked.connect(self.add_parameter_row)
@@ -183,4 +187,35 @@ class InputTab(QWidget):
         self.refresh_autocomplete()
         QMessageBox.information(self, "Сохранено", "Объект и его параметры сохранены в CSV.")
         self.data_changed.emit()
+
+ def load_skeleton(self):
+        """Загружает шаблон с предустановленными параметрами"""
+        skeleton_parameters = [
+            ("Тип устройства", ""),
+            ("Имя устройства", ""),
+            ("IP-адрес", ""),
+            ("MAC-адрес", ""),
+            ("Класс сетевой угрозы", ""),
+            ("Количество событий", ""),
+            ("Дата события", ""),
+        ]
+
+        for row in self.parameter_rows[:]:
+            row.setParent(None)
+            row.deleteLater()
+        self.parameter_rows.clear()
+
+        for param_name, default_value in skeleton_parameters:
+            self.add_parameter_row()
+            current_row = self.parameter_rows[-1]
+            current_row.name_edit.setText(param_name)
+            current_row.value_edit.setText(default_value)
+
+        self.refresh_autocomplete()
+        QMessageBox.information(
+            self,
+            "Скелет загружен",
+            f"Загружено {len(skeleton_parameters)} предустановленных параметров.\n"
+            "Вы можете изменять значения и добавлять новые параметры."
+        )
 
