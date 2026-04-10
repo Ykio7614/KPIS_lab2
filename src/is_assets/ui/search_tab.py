@@ -98,6 +98,8 @@ class SearchConditionRow(QWidget):
 
 class SearchTab(QWidget):
     data_changed = pyqtSignal()
+    COLUMN_ORDER = ["Объект", "Тип устройства", "Имя устройства", "IP-адрес",
+                    "MAC-адрес", "Класс сетевой угрозы", "Количество событий", "Дата события"]
 
     def __init__(self, repository, export_service, parent=None) -> None:
         super().__init__(parent)
@@ -107,6 +109,7 @@ class SearchTab(QWidget):
         self.current_records: list[dict[str, str]] = []
         self.display_fields = self.repository.get_display_fields()
         self.edit_mode = False
+        self._export_headers: list[str] = []
 
         root = QVBoxLayout(self)
 
@@ -337,10 +340,28 @@ class SearchTab(QWidget):
         self.refresh_data()
         self.data_changed.emit()
 
+    def _get_ordered_headers(self) -> list[str]:
+        ordered = [field for field in self.COLUMN_ORDER if field in self.display_fields]
+        for field in self.display_fields:
+            if field not in ordered:
+                ordered.append(field)
+        return ordered
+
     def _rows_for_export(self) -> list[dict[str, str]]:
-        return [{field: row.get(field, "") for field in self.display_fields} for row in self.current_records]
+        """Подготовка данных для экспорта с правильным порядком колонок"""
+        ordered_fields = self._get_ordered_headers()
+        self._export_headers = ordered_fields
+
+        rows = []
+        for record in self.current_records:
+            row = {}
+            for field in ordered_fields:
+                row[field] = record.get(field, "")
+            rows.append(row)
+        return rows
 
     def export_results(self, export_type: str) -> None:
+        """Экспорт результатов поиска в файл"""
         if not self.current_records:
             QMessageBox.information(self, "Экспорт", "Нет данных для выгрузки.")
             return
@@ -356,14 +377,19 @@ class SearchTab(QWidget):
             return
 
         rows = self._rows_for_export()
-        headers = list(self.display_fields)
-        if export_type == "csv":
-            self.export_service.export_csv(headers, rows, path)
-        elif export_type == "doc":
-            self.export_service.export_doc(headers, rows, path, "Результаты поиска объектов ИБ")
-        else:
-            self.export_service.export_pdf(headers, rows, path, "Результаты поиска объектов ИБ")
-        QMessageBox.information(self, "Экспорт", "Файл успешно сохранен.")
+        headers = getattr(self, '_export_headers', list(self.display_fields))
+        title = "Результаты поиска объектов информационной безопасности"
+
+        try:
+            if export_type == "csv":
+                self.export_service.export_csv(headers, rows, path)
+            elif export_type == "doc":
+                self.export_service.export_doc(headers, rows, path, title)
+            else:  # pdf
+                self.export_service.export_pdf(headers, rows, path, title)
+            QMessageBox.information(self, "Экспорт", f"Файл успешно сохранён: {path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Не удалось сохранить файл: {e}")
 
     def show_logs(self) -> None:
         dialog = LogsDialog(self.repository, self)
